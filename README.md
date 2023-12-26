@@ -1,0 +1,1 @@
+# scrumMD - A CLI tool for managing your scrum meetings using markdown
