@@ -1,9 +1,12 @@
 use argparse::{ArgumentParser, Store};
+use env_logger::Builder;
 use errors::TeamError;
+use log::trace;
 use std::error::Error;
 
 mod errors;
 mod team;
+mod utils;
 
 #[derive(Debug)]
 enum BaseCmd {
@@ -19,6 +22,10 @@ enum TeamCmd {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let mut builder = Builder::new();
+
+    builder.init();
+
     // let mut verbose = false;
     let mut program_cmd_str = String::new();
     let mut task_cmd_str = String::new();
@@ -62,7 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         v => return Err(Box::new(TeamError::ReadError { got: v.to_string() })),
     };
 
-    println!("Running command: {:?}", program_cmd);
+    trace!("Running command: {:?}", program_cmd);
     run_cmd(program_cmd)?;
     Ok(())
 }
@@ -77,23 +84,23 @@ fn run_cmd(cmd: BaseCmd) -> Result<(), Box<dyn Error>> {
 }
 
 fn handle_team_cmd(cmd: TeamCmd, team_name: String) -> Result<(), Box<dyn Error>> {
+    trace!("Entering handle_team_cmd()");
     match cmd {
         TeamCmd::AddMember { name } => {
-            let team_filename = format!("teams/{}.txt", team_name);
-            let mut team = team::load_team(&team_filename)?;
+            let mut team = team::load_team(team_name.as_str())?;
             team.add_member(name.clone())?;
-            team.save_team(&team_name)?;
+            team.save()?;
             println!("Added member {:?} to team {:?}", name, team.name);
         }
         TeamCmd::RemoveMember { name } => {
-            let team_filename = format!("{}.txt", team_name);
-            let mut team = team::load_team(&team_filename)?;
+            let mut team = team::load_team(team_name.as_str())?;
             team.remove_member(name.clone())?;
-            team.save_team(&team_name)?;
+            team.save()?;
             println!("Removed member {:?} from team {:?}", name, team.name);
         }
         TeamCmd::CreateTeam { name } => {
             create_team(name.clone())?;
+
             println!("Created team {:?}", name);
         }
         TeamCmd::DeleteTeam { name } => {
@@ -115,14 +122,15 @@ fn parse_team_cmd(member_name: String, task_cmd_str: String) -> Result<TeamCmd, 
 }
 
 fn create_team(team_name: String) -> Result<(), Box<dyn Error>> {
-    let team = team::Team::new(team_name.clone());
-    let team_filename = format!("teams/{}.txt", team_name);
-    team.save_team(&team_filename)?;
+    if utils::team_exist(team_name.as_str()) {
+        return Err(Box::new(TeamError::TeamAlreadyExists { name: team_name }));
+    }
+    let _team = team::Team::new(team_name.clone())?;
     Ok(())
 }
 
 fn delete_team(team_name: String) -> Result<(), Box<dyn Error>> {
-    let team_filename = format!("teams/{}.txt", team_name);
-    team::delete_team(&team_filename)?;
+    let team = team::load_team(&team_name)?;
+    team::delete_team(team)?;
     Ok(())
 }
